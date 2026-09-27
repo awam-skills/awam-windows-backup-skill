@@ -1,0 +1,9 @@
+# 本地运行配置（含路径、密码），不纳入版本管理
+config/*
+!config/.gitkeep
+
+# 导出/恢复临时产物
+*.log
+RestoreTemp/
+.DS_Store
+Thumbs.db
