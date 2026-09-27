@@ -143,8 +143,23 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<skill>\scripts\import-syst
 
 - 密码在 `config/repository.env`，勿提交、勿贴到公开日志
 - 不自动导入整份 HKLM；不默认整包导入 `hkcu-full`
-- 本技能不处理 Program Files 软件本体、微信聊天、>1GB 单文件（由 policy 排除）
+- 本技能不处理 Program Files **软件本体**；但会导出若干安装目录内的**配置文件**（如 Easy Context Menu ini、PotPlayer ini）到 `SystemConfig/latest/apps`
+- 不处理微信聊天、>1GB 单文件（由 policy 排除）；不备份 Studio 3T
 - 可程序化步骤一律走 `scripts/`，不要手写临时 one-liner 替代主流程（排障除外）
+
+## 应用配置（backup 时自动导出到 SystemConfig）
+
+| 模块 id | 来源 | 说明 |
+|---------|------|------|
+| netsang | `Documents\NetSarang Computer` | Xshell/Xftp 会话与密钥（活配置） |
+| easy-context-menu | 安装目录 `Files\*.ini` | 自动探测常见路径（含 `S:\Program Files\...`） |
+| potplayer-mini64 / potplayer64 / potplayer-ini | HKCU + 安装目录 `.ini` | 注册表 + ini，替代手工 `.reg` 导出 |
+| total-commander / total-commander-reg | 注册表 IniFileName + 安装目录 | 拷贝 `wincmd.ini` / `wcx_ftp.ini`（若存在） |
+| directory-opus | `%AppData%\GPSoftware\Directory Opus` | 替代 `.ocb` |
+| android-studio | `%AppData%\Google\AndroidStudio*` | 替代 `settings.jar`（不含 Local 缓存） |
+| browser-essentials | 随 `user-profile` | Vimium 等在 `Local/Sync Extension Settings`，policies 保留这些路径 |
+
+恢复用户级应用：`import-system-config.ps1 -Modules netsang,directory-opus,android-studio`（Program Files 侧 ini 需手工拷回）。
 
 ## 更多说明
 

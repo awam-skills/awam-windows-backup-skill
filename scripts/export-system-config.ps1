@@ -25,6 +25,39 @@ function Copy-IfExists {
   return $dest
 }
 
+function Copy-TreeFiltered {
+  param(
+    [Parameter(Mandatory)][string]$Source,
+    [Parameter(Mandatory)][string]$Dest,
+    [string[]]$ExcludeDirNames = @()
+  )
+  if (-not (Test-Path -LiteralPath $Source)) { return $false }
+  Ensure-Dir $Dest
+  $robArgs = @($Source, $Dest, '/E', '/NFL', '/NDL', '/NJH', '/NJS', '/NC', '/NS', '/NP', '/R:1', '/W:1')
+  foreach ($d in $ExcludeDirNames) {
+    if ($d) { $robArgs += @('/XD', $d) }
+  }
+  & robocopy.exe @robArgs | Out-Null
+  # robocopy: 0-7 = 成功/无差异；>=8 为失败
+  return ($LASTEXITCODE -lt 8)
+}
+
+function Add-AppModule {
+  param(
+    [Parameter(Mandatory)]$Manifest,
+    [Parameter(Mandatory)][string]$Id,
+    [Parameter(Mandatory)][string]$Note,
+    [Parameter(Mandatory)][bool]$Ok,
+    [string]$File = '',
+    [string]$ErrorText = '',
+    [hashtable]$Extra = $null
+  )
+  $entry = [ordered]@{ id = $Id; type = 'apps'; file = $File; note = $Note; ok = $Ok }
+  if ($ErrorText) { $entry.error = $ErrorText }
+  if ($Extra) { foreach ($k in $Extra.Keys) { $entry[$k] = $Extra[$k] } }
+  $Manifest.modules += $entry
+}
+
 $envMap = $null
 try { $envMap = Get-BackupEnv } catch {
   # 允许在仅导出场景下用默认路径
@@ -52,6 +85,7 @@ $dirs = @{
   network         = Join-Path $Root 'network'
   inventory       = Join-Path $Root 'inventory'
   misc            = Join-Path $Root 'misc'
+  apps            = Join-Path $Root 'apps'
 }
 $dirs.Values | ForEach-Object { Ensure-Dir $_ }
 
@@ -82,7 +116,10 @@ $regModules = @(
   @{ id = 'explorer-advanced'; key = 'HKCU\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced'; note = '资源管理器高级选项'; needAdmin = $false },
   @{ id = 'console'; key = 'HKCU\Console'; note = '控制台窗口默认设置'; needAdmin = $false },
   @{ id = 'international'; key = 'HKCU\Control Panel\International'; note = '区域与格式'; needAdmin = $false },
-  @{ id = 'input-method'; key = 'HKCU\Keyboard Layout'; note = '键盘布局'; needAdmin = $false }
+  @{ id = 'input-method'; key = 'HKCU\Keyboard Layout'; note = '键盘布局'; needAdmin = $false },
+  @{ id = 'potplayer-mini64'; key = 'HKCU\Software\DAUM\PotPlayerMini64'; note = 'PotPlayer Mini64 配置'; needAdmin = $false },
+  @{ id = 'potplayer64'; key = 'HKCU\Software\DAUM\PotPlayer64'; note = 'PotPlayer64 配置'; needAdmin = $false },
+  @{ id = 'total-commander-reg'; key = 'HKCU\Software\Ghisler\Total Commander'; note = 'Total Commander 注册表(ini 路径等)'; needAdmin = $false }
 )
 
 foreach ($m in $regModules) {
@@ -248,6 +285,166 @@ if (Test-Path "$env:USERPROFILE\.wslconfig") {
   Copy-IfExists "$env:USERPROFILE\.wslconfig" $dirs.misc 'wslconfig' | Out-Null
   $manifest.modules += [ordered]@{ id = 'wslconfig'; type = 'misc'; file = 'misc/wslconfig'; note = '.wslconfig'; ok = $true }
 }
+
+# ---- 应用活配置（非人工导出成品）----
+Write-Host '==== apps (live config) ===='
+
+# NetSarang / Xshell / Xftp：会话与密钥在用户 Documents（非 Program Files）
+$nsSrc = Join-Path $env:USERPROFILE 'Documents\NetSarang Computer'
+$nsDst = Join-Path $dirs.apps 'netsang\Documents-NetSarang-Computer'
+if (Copy-TreeFiltered -Source $nsSrc -Dest $nsDst -ExcludeDirNames @('Log', 'Logs', 'applog')) {
+  Add-AppModule -Manifest $manifest -Id 'netsang' -Note 'Xshell/Xftp 会话与密钥 (Documents\NetSarang Computer)' -Ok $true -File 'apps/netsang/'
+  Write-Host '  apps OK netsang'
+} else {
+  Add-AppModule -Manifest $manifest -Id 'netsang' -Note 'Xshell/Xftp（未找到 Documents\NetSarang Computer）' -Ok $false -ErrorText 'path missing'
+  Write-Host '  apps -- netsang'
+}
+
+# Easy Context Menu：安装目录内 ini
+$ecmCopied = $false
+$ecmCandidates = @(
+  'S:\Program Files\Easy Context Menu',
+  'C:\Program Files\Easy Context Menu',
+  'C:\Program Files (x86)\Easy Context Menu',
+  'D:\Program Files\Easy Context Menu'
+)
+foreach ($ecmRoot in $ecmCandidates) {
+  $filesDir = Join-Path $ecmRoot 'Files'
+  if (-not (Test-Path -LiteralPath $filesDir)) { continue }
+  $ecmDst = Join-Path $dirs.apps 'easy-context-menu'
+  Ensure-Dir $ecmDst
+  foreach ($iniName in @('EcMenu.ini', 'Items.ini')) {
+    $iniPath = Join-Path $filesDir $iniName
+    if (Copy-IfExists $iniPath $ecmDst) { $ecmCopied = $true }
+  }
+  [pscustomobject]@{ sourceRoot = $ecmRoot } | ConvertTo-Json | Set-Content (Join-Path $ecmDst 'source.json') -Encoding UTF8
+  if ($ecmCopied) {
+    Add-AppModule -Manifest $manifest -Id 'easy-context-menu' -Note "Easy Context Menu ini ($ecmRoot)" -Ok $true -File 'apps/easy-context-menu/' -Extra @{ source = $ecmRoot }
+    Write-Host "  apps OK easy-context-menu ($ecmRoot)"
+    break
+  }
+}
+if (-not $ecmCopied) {
+  Add-AppModule -Manifest $manifest -Id 'easy-context-menu' -Note 'Easy Context Menu（未找到安装目录）' -Ok $false -ErrorText 'path missing'
+  Write-Host '  apps -- easy-context-menu'
+}
+
+# PotPlayer：注册表已在 modules；再拷贝安装目录 ini
+$ppIniOk = $false
+$ppDst = Join-Path $dirs.apps 'potplayer'
+Ensure-Dir $ppDst
+$ppInstallCandidates = @(
+  'S:\Program Files\DAUM\PotPlayer',
+  'C:\Program Files\DAUM\PotPlayer',
+  'C:\Program Files (x86)\DAUM\PotPlayer'
+)
+try {
+  $ppFolder = (Get-ItemProperty -Path 'HKCU:\Software\DAUM\PotPlayer64' -EA SilentlyContinue).ProgramFolder
+  if ($ppFolder) { $ppInstallCandidates = @($ppFolder) + $ppInstallCandidates }
+} catch {}
+foreach ($ppRoot in $ppInstallCandidates) {
+  if (-not (Test-Path -LiteralPath $ppRoot)) { continue }
+  Get-ChildItem -LiteralPath $ppRoot -Filter '*.ini' -File -EA SilentlyContinue | ForEach-Object {
+    Copy-Item $_.FullName (Join-Path $ppDst $_.Name) -Force
+    $ppIniOk = $true
+  }
+  if ($ppIniOk) {
+    [pscustomobject]@{ sourceRoot = $ppRoot } | ConvertTo-Json | Set-Content (Join-Path $ppDst 'source.json') -Encoding UTF8
+    break
+  }
+}
+Add-AppModule -Manifest $manifest -Id 'potplayer-ini' -Note 'PotPlayer 安装目录 .ini（注册表见 potplayer-mini64/potplayer64）' -Ok $ppIniOk -File 'apps/potplayer/'
+if ($ppIniOk) { Write-Host '  apps OK potplayer-ini' } else { Write-Host '  apps -- potplayer-ini' }
+
+# Total Commander：从注册表解析 ini 路径，并扫描常见安装目录
+$tcDst = Join-Path $dirs.apps 'total-commander'
+Ensure-Dir $tcDst
+$tcCopied = @()
+$tcMeta = [ordered]@{ iniFileName = $null; ftpIniName = $null; installDir = $null; copied = @() }
+try {
+  $tcProps = Get-ItemProperty -Path 'HKCU:\Software\Ghisler\Total Commander' -EA Stop
+  $tcMeta.iniFileName = [string]$tcProps.IniFileName
+  $tcMeta.ftpIniName = [string]$tcProps.FtpIniName
+  $tcMeta.installDir = [string]$tcProps.InstallDir
+} catch {}
+$tcFileCandidates = @()
+foreach ($p in @($tcMeta.iniFileName, $tcMeta.ftpIniName)) {
+  if ($p) { $tcFileCandidates += $p }
+}
+$tcDirCandidates = @(
+  $tcMeta.installDir,
+  'S:\Program Files\totalcmd',
+  'C:\Program Files\totalcmd',
+  'C:\Program Files (x86)\totalcmd',
+  'C:\totalcmd'
+) | Where-Object { $_ } | Select-Object -Unique
+foreach ($td in $tcDirCandidates) {
+  if (-not (Test-Path -LiteralPath $td)) { continue }
+  foreach ($name in @('wincmd.ini', 'wcx_ftp.ini', 'wcx_ftp.ini.bak', 'wincmd.ini.bak')) {
+    $tcFileCandidates += (Join-Path $td $name)
+  }
+}
+foreach ($f in ($tcFileCandidates | Select-Object -Unique)) {
+  if ($f -and (Test-Path -LiteralPath $f)) {
+    $copied = Copy-IfExists $f $tcDst
+    if ($copied) { $tcCopied += $f; $tcMeta.copied += $f }
+  }
+}
+$tcMeta | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $tcDst 'source.json') -Encoding UTF8
+$tcOk = $tcCopied.Count -gt 0
+Add-AppModule -Manifest $manifest -Id 'total-commander' -Note "Total Commander ini ($($tcCopied.Count) files；注册表见 total-commander-reg)" -Ok $tcOk -File 'apps/total-commander/' -Extra @{ copiedCount = $tcCopied.Count }
+if ($tcOk) { Write-Host "  apps OK total-commander ($($tcCopied.Count))" } else { Write-Host '  apps -- total-commander (ini 未找到，仅有注册表模块)' }
+
+# Directory Opus：AppData 活配置（替代 .ocb）
+$dopSrc = Join-Path $env:APPDATA 'GPSoftware\Directory Opus'
+$dopDst = Join-Path $dirs.apps 'directory-opus'
+if (Copy-TreeFiltered -Source $dopSrc -Dest $dopDst -ExcludeDirNames @('Logs', 'Icon Cache Roaming', 'Photo Sharing')) {
+  Add-AppModule -Manifest $manifest -Id 'directory-opus' -Note 'Directory Opus AppData 活配置（非 .ocb）' -Ok $true -File 'apps/directory-opus/'
+  Write-Host '  apps OK directory-opus'
+} else {
+  Add-AppModule -Manifest $manifest -Id 'directory-opus' -Note 'Directory Opus（未找到 AppData 配置）' -Ok $false -ErrorText 'path missing'
+  Write-Host '  apps -- directory-opus'
+}
+
+# Android Studio：Roaming 配置目录（替代 settings.jar）；不含 Local 缓存
+$asCopied = 0
+$asDstRoot = Join-Path $dirs.apps 'android-studio'
+$asRoaming = Join-Path $env:APPDATA 'Google'
+if (Test-Path -LiteralPath $asRoaming) {
+  Get-ChildItem -LiteralPath $asRoaming -Directory -EA SilentlyContinue |
+    Where-Object { $_.Name -like 'AndroidStudio*' } |
+    ForEach-Object {
+      $dest = Join-Path $asDstRoot $_.Name
+      if (Copy-TreeFiltered -Source $_.FullName -Dest $dest -ExcludeDirNames @('caches', 'index', 'log', 'tmp', 'LocalHistory')) {
+        $asCopied++
+      }
+    }
+}
+Add-AppModule -Manifest $manifest -Id 'android-studio' -Note "Android Studio Roaming 配置 ($asCopied 个版本目录)" -Ok ($asCopied -gt 0) -File 'apps/android-studio/' -Extra @{ versionCount = $asCopied }
+if ($asCopied -gt 0) { Write-Host "  apps OK android-studio ($asCopied)" } else { Write-Host '  apps -- android-studio' }
+
+# 浏览器扩展必要文件说明：由 user-profile 覆盖（见 INDEX）；此处写一份清单便于核验
+$browserNote = [ordered]@{
+  coveredBy = 'user-profile'
+  vimiumExtensionId = 'dbepggeogbaibhgnhhndojpepiihcmeb'
+  essentialGlobs = @(
+    'AppData/Local/Google/Chrome/User Data/*/Preferences',
+    'AppData/Local/Google/Chrome/User Data/*/Bookmarks',
+    'AppData/Local/Google/Chrome/User Data/*/Secure Preferences',
+    'AppData/Local/Google/Chrome/User Data/*/Local Extension Settings/**',
+    'AppData/Local/Google/Chrome/User Data/*/Sync Extension Settings/**',
+    'AppData/Local/Microsoft/Edge/User Data/*/Preferences',
+    'AppData/Local/Microsoft/Edge/User Data/*/Bookmarks',
+    'AppData/Local/Microsoft/Edge/User Data/*/Local Extension Settings/**',
+    'AppData/Local/Microsoft/Edge/User Data/*/Sync Extension Settings/**'
+  )
+  note = 'Vimium 等扩展配置在 Local/Sync Extension Settings；当前 policies 未排除这些路径，随 user-profile 增量备份。'
+}
+$browserDst = Join-Path $dirs.apps 'browser-essentials'
+Ensure-Dir $browserDst
+$browserNote | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $browserDst 'COVERAGE.json') -Encoding UTF8
+Add-AppModule -Manifest $manifest -Id 'browser-essentials' -Note '浏览器扩展必要文件：随 user-profile 备份（见 apps/browser-essentials/COVERAGE.json）' -Ok $true -File 'apps/browser-essentials/COVERAGE.json'
+Write-Host '  apps OK browser-essentials (coverage note)'
 
 ($manifest | ConvertTo-Json -Depth 8) | Set-Content (Join-Path $Root 'manifest.json') -Encoding UTF8
 $idx = @('# SystemConfig 导出索引', '', "- 时间: $($manifest.exportedAt)", "- 计算机: $computer / $user / admin=$isAdmin", '', '| 模块 | 类型 | 说明 | OK |', '|------|------|------|----|')

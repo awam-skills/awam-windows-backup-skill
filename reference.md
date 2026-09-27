@@ -22,15 +22,26 @@ Kopia 对源路径每次 `snapshot create` 生成可独立恢复的快照点；�
 | installed-programs | 已装软件清单（只读对照） | — |
 | windows-terminal / wslconfig / powercfg | 终端 / WSL / 电源 | 视情况 |
 | hkcu-full | HKCU 全量归档 | 默认不导入 |
+| potplayer-mini64 / potplayer64 | PotPlayer 注册表 | 否 |
+| total-commander-reg | Total Commander 注册表 | 否 |
+| netsang / easy-context-menu / potplayer-ini / total-commander / directory-opus / android-studio | 应用活配置（`apps/`） | 用户级可自动；安装目录 ini 需手工 |
+| browser-essentials | 覆盖说明（实际随 user-profile） | — |
 
 注册表策略：**功能模块 `.reg` + HKCU 全量归档**；不做 HKLM 整包导出/导入。
+
+## 应用配置与浏览器扩展
+
+- **备份方式**：`export-system-config.ps1` 在每次 `backup.ps1` 前刷新，将活配置拷到 `SYSTEM_CONFIG_PATH\latest\apps\`，并导出 PotPlayer / Total Commander 相关注册表模块。
+- **Vimium / 浏览器扩展**：配置在 Chrome/Edge 的 `Local Extension Settings` 与 `Sync Extension Settings`。本机 Vimium id=`dbepggeogbaibhgnhhndojpepiihcmeb`。这些路径落在 `user-profile` 下，且 **policies 未排除**；已额外忽略 `component_crx_cache` / `File System` 等浏览器冗余，避免拖垮增量。
+- **不在范围内**：Studio 3T 连接 URI / 连接库。
 
 ## 推荐恢复顺序（重装后）
 
 1. `setup.ps1` 连接原仓库  
 2. `restore.ps1` 恢复用户目录到临时路径 → 核对 → 拷回  
 3. 管理员：`import-system-config.ps1 -Modules environment-user,environment-machine,hosts,tasks,run-user,startup-folder,autorun`  
-4. 按需：`wifi`、`firewall`、`windows-terminal`
+4. 按需：`wifi`、`firewall`、`windows-terminal`、`netsang`、`directory-opus`、`android-studio`、`potplayer-mini64`  
+5. 手工：Easy Context Menu / Total Commander / PotPlayer 的安装目录 ini（见 `apps/` 与 INDEX）
 
 ## 与旧路径的关系
 

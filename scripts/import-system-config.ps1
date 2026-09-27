@@ -151,6 +151,57 @@ foreach ($id in $requested) {
         Write-Host '  OK wslconfig'; $ok++
       } else { Write-Host '  请手工处理'; $skip++ }
     }
+    'apps' {
+      $appSrc = Join-Path $Root $m.file
+      switch ($id) {
+        'netsang' {
+          $src = Join-Path $Root 'apps\netsang\Documents-NetSarang-Computer'
+          $dst = Join-Path $env:USERPROFILE 'Documents\NetSarang Computer'
+          if (-not (Test-Path $src)) { Write-Warning "缺目录 $src"; $fail++; break }
+          if ($WhatIf) { Write-Host "  WhatIf: copy -> $dst"; $ok++; break }
+          Ensure-Dir $dst
+          & robocopy.exe $src $dst /E /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+          Write-Host "  OK -> $dst"; $ok++
+        }
+        'directory-opus' {
+          $src = Join-Path $Root 'apps\directory-opus'
+          $dst = Join-Path $env:APPDATA 'GPSoftware\Directory Opus'
+          if (-not (Test-Path $src)) { Write-Warning "缺目录 $src"; $fail++; break }
+          if ($WhatIf) { Write-Host "  WhatIf: copy -> $dst"; $ok++; break }
+          Ensure-Dir $dst
+          & robocopy.exe $src $dst /E /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+          Write-Host "  OK -> $dst"; $ok++
+        }
+        'android-studio' {
+          $srcRoot = Join-Path $Root 'apps\android-studio'
+          $dstRoot = Join-Path $env:APPDATA 'Google'
+          if (-not (Test-Path $srcRoot)) { Write-Warning "缺目录 $srcRoot"; $fail++; break }
+          Get-ChildItem $srcRoot -Directory -EA SilentlyContinue | ForEach-Object {
+            $dst = Join-Path $dstRoot $_.Name
+            if ($WhatIf) { Write-Host "  WhatIf: $($_.Name)"; return }
+            Ensure-Dir $dst
+            & robocopy.exe $_.FullName $dst /E /R:1 /W:1 /NFL /NDL /NJH /NJS | Out-Null
+            Write-Host "  OK $($_.Name)"
+          }
+          $ok++
+        }
+        'easy-context-menu' {
+          Write-Host "  请将 $appSrc 中的 EcMenu.ini / Items.ini 拷回 Easy Context Menu\Files\"; $skip++
+        }
+        'potplayer-ini' {
+          Write-Host "  PotPlayer：先 import potplayer-mini64 / potplayer64 注册表，再按需拷回 $appSrc 的 .ini"; $skip++
+        }
+        'total-commander' {
+          Write-Host "  请将 $appSrc 中的 wincmd.ini / wcx_ftp.ini 拷到 TC 使用的路径（见注册表 IniFileName），并 import total-commander-reg"; $skip++
+        }
+        'browser-essentials' {
+          Write-Host '  浏览器扩展随 user-profile 恢复，无需单独导入'; $skip++
+        }
+        default {
+          Write-Host "  请手工从 $appSrc 恢复"; $skip++
+        }
+      }
+    }
     default { Write-Warning "未实现: $($m.type)"; $skip++ }
   }
 }
