@@ -1,0 +1,105 @@
+{
+  "(global)": {
+    "retention": {
+      "keepLatest": 10,
+      "keepHourly": 0,
+      "keepDaily": 14,
+      "keepWeekly": 8,
+      "keepMonthly": 12,
+      "keepAnnual": 3,
+      "ignoreIdenticalSnapshots": true
+    },
+    "files": {
+      "maxFileSize": 1073741824,
+      "ignore": [
+        "**/Cache/**",
+        "**/Code Cache/**",
+        "**/GPUCache/**",
+        "**/DawnCache/**",
+        "**/ShaderCache/**",
+        "**/GrShaderCache/**",
+        "**/CachedData/**",
+        "**/CachedExtensions/**",
+        "**/CachedExtensionVSIXs/**",
+        "**/CachedConfigurations/**",
+        "**/logs/**",
+        "**/Log/**",
+        "**/Logs/**",
+        "**/Temp/**",
+        "**/tmp/**",
+        "**/node_modules/**",
+        "**/.git/objects/**",
+        "**/Crashpad/**",
+        "**/CrashDumps/**",
+        "**/BrowserMetrics/**",
+        "**/Service Worker/CacheStorage/**",
+        "**/Service Worker/ScriptCache/**",
+        "**/__pycache__/**",
+        "**/.venv/**",
+        "**/venv/**",
+        "**/.conda/**",
+        "**/pip/cache/**",
+        "**/npm-cache/**",
+        "**/pnpm-store/**",
+        "**/Yarn/Cache/**",
+        "**/go-build/**",
+        "**/NuGet/v3-cache/**",
+        "**/NuGet/plugins-cache/**",
+        "**/.cache/**",
+        "**/blob_storage/**",
+        "**/optimization_guide_prediction_model_downloads/**",
+        "**/Safe Browsing/**",
+        "AppData/Local/Temp/**",
+        "AppData/Local/Programs/**",
+        "AppData/Local/Docker/**",
+        "AppData/Local/Packages/**/TempState/**",
+        "AppData/Local/Microsoft/Windows/INetCache/**",
+        "AppData/Local/Microsoft/Windows/Explorer/**",
+        "AppData/Local/pip/**",
+        "AppData/Local/npm-cache/**",
+        "AppData/Local/pnpm-cache/**",
+        "AppData/Local/pnpm-state/**",
+        "AppData/Local/Yarn/**",
+        "AppData/Local/uv/**",
+        "AppData/Local/D3DSCache/**",
+        "AppData/Local/CrashDumps/**",
+        "AppData/Local/Steam/**",
+        "AppData/Local/Nox/**",
+        "AppData/Local/MuMuPlayer/**",
+        "AppData/Local/NVIDIA/**",
+        "AppData/Local/NVIDIA Corporation/**",
+        "AppData/Roaming/npm-cache/**",
+        "AppData/Roaming/Tencent/xwechat/**",
+        "AppData/Roaming/Tencent/WeChat/**",
+        "AppData/Roaming/Tencent/QQ/**",
+        "Documents/WeChat Files/**",
+        "Documents/xwechat_files/**",
+        "OneDrive/**",
+        ".docker/**",
+        ".local/share/Trash/**"
+      ],
+      "ignoreDotFiles": [".kopiaignore"],
+      "ignoreCacheDirs": true
+    },
+    "errorHandling": {
+      "ignoreFileErrors": true,
+      "ignoreDirectoryErrors": true,
+      "ignoreUnknownTypes": true
+    },
+    "compression": {
+      "compressorName": "zstd"
+    },
+    "metadataCompression": {
+      "compressorName": "zstd-fastest"
+    },
+    "osSnapshots": {
+      "volumeShadowCopy": {
+        "enable": 2
+      }
+    },
+    "upload": {
+      "maxParallelSnapshots": 1,
+      "parallelUploadAboveSize": 2147483648
+    }
+  }
+}

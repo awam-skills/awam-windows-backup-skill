@@ -1,0 +1,17 @@
+{
+  "comment": "enabled=true 的项会在 backup.ps1 中创建增量快照。路径请按本机修改。",
+  "sources": [
+    {
+      "id": "user-profile",
+      "path": "C:\\Users\\Administrator",
+      "enabled": true,
+      "note": "用户目录全量（策略中排除缓存/软件本体/超大文件）"
+    },
+    {
+      "id": "system-config",
+      "path": "I:\\Backup\\SystemConfig",
+      "enabled": true,
+      "note": "系统配置导出目录；backup 前自动刷新"
+    }
+  ]
+}
