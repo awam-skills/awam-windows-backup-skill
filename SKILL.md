@@ -1,5 +1,6 @@
 ---
 name: awam-windows-backup
+version: 0.0.1
 description: >-
   Windows 本机 Kopia 增量备份与恢复（用户目录 + 系统配置导出）。
   Use when the user asks to backup, restore, snapshot, 备份, 恢复, Kopia,
