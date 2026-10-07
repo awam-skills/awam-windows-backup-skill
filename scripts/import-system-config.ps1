@@ -12,9 +12,9 @@ $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
 
 $envMap = $null
-try { $envMap = Get-BackupEnv } catch { $envMap = @{ SYSTEM_CONFIG_PATH = 'I:\Backup\SystemConfig' } }
+try { $envMap = Get-BackupEnv } catch { $envMap = @{ SYSTEM_CONFIG_PATH = (Join-Path (Get-DefaultDataDir) 'SystemConfig') } }
 if (-not $InputRoot) { $InputRoot = $envMap['SYSTEM_CONFIG_PATH'] }
-if (-not $InputRoot) { $InputRoot = 'I:\Backup\SystemConfig' }
+if (-not $InputRoot) { $InputRoot = Join-Path (Get-DefaultDataDir) 'SystemConfig' }
 
 $Root = Join-Path $InputRoot 'latest'
 $manifestPath = Join-Path $Root 'manifest.json'

@@ -3,13 +3,13 @@
   "sources": [
     {
       "id": "user-profile",
-      "path": "C:\\Users\\Administrator",
+      "path": "C:\\Users\\<你的用户名>",
       "enabled": true,
       "note": "用户目录全量（策略中排除缓存/软件本体/超大文件；保留浏览器扩展配置）"
     },
     {
       "id": "system-config",
-      "path": "I:\\Backup\\SystemConfig",
+      "path": "D:\\Backup\\SystemConfig",
       "enabled": true,
       "note": "系统配置+应用活配置导出目录；backup 前自动刷新"
     }

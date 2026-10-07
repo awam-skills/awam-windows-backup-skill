@@ -45,4 +45,4 @@ Kopia 对源路径每次 `snapshot create` 生成可独立恢复的快照点；�
 
 ## 与旧路径的关系
 
-本技能把脚本与配置收拢到技能目录；仓库数据仍可指向原有 `KopiaRepo`。若本机已有 `I:\Software\kopia-...\config\`，可将路径填进本技能 `config/repository.env`，共用同一仓库。
+本技能把脚本与配置收拢到技能目录；仓库数据路径由 `config/repository.env` 指定。若本机已用 Kopia 官方客户端建过仓库，把 `KOPIA_REPO_PATH` / `KOPIA_CONFIG_PATH` 指向原有位置即可共用同一仓库。

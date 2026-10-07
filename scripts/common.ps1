@@ -24,6 +24,19 @@ function Read-DotEnv([string]$Path) {
   return $map
 }
 
+function Get-DefaultDataDir {
+  # 未配置时的默认数据落点：技能根 _data（不写死个人盘符）
+  return (Join-Path (Get-SkillRoot) '_data')
+}
+
+function Get-ExtraProgramDirs([hashtable]$EnvMap) {
+  # 自定义 Program Files 根目录（分号分隔），用于探测装在非 C 盘的应用
+  if ($EnvMap -and $EnvMap['EXTRA_PROGRAM_DIRS']) {
+    return @($EnvMap['EXTRA_PROGRAM_DIRS'] -split ';' | ForEach-Object { $_.Trim() } | Where-Object { $_ })
+  }
+  return @()
+}
+
 function Get-BackupEnv {
   $configDir = Get-ConfigDir
   $envFile = Join-Path $configDir 'repository.env'
@@ -36,8 +49,8 @@ function Get-BackupEnv {
       throw "请在 config/repository.env 中设置有效的 $req"
     }
   }
-  if (-not $map['SYSTEM_CONFIG_PATH']) { $map['SYSTEM_CONFIG_PATH'] = 'I:\Backup\SystemConfig' }
-  if (-not $map['RESTORE_TEMP']) { $map['RESTORE_TEMP'] = 'I:\Backup\RestoreTemp' }
+  if (-not $map['SYSTEM_CONFIG_PATH']) { $map['SYSTEM_CONFIG_PATH'] = Join-Path (Get-DefaultDataDir) 'SystemConfig' }
+  if (-not $map['RESTORE_TEMP']) { $map['RESTORE_TEMP'] = Join-Path (Get-DefaultDataDir) 'RestoreTemp' }
   if (-not $map['KOPIA_USERNAME']) { $map['KOPIA_USERNAME'] = $env:USERNAME }
   if (-not $map['KOPIA_HOSTNAME']) { $map['KOPIA_HOSTNAME'] = $env:COMPUTERNAME }
   $map['_CONFIG_DIR'] = $configDir

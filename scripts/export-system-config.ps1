@@ -61,10 +61,11 @@ function Add-AppModule {
 $envMap = $null
 try { $envMap = Get-BackupEnv } catch {
   # 允许在仅导出场景下用默认路径
-  $envMap = @{ SYSTEM_CONFIG_PATH = 'I:\Backup\SystemConfig' }
+  $envMap = @{ SYSTEM_CONFIG_PATH = (Join-Path (Get-DefaultDataDir) 'SystemConfig') }
 }
 if (-not $OutputRoot) { $OutputRoot = $envMap['SYSTEM_CONFIG_PATH'] }
-if (-not $OutputRoot) { $OutputRoot = 'I:\Backup\SystemConfig' }
+if (-not $OutputRoot) { $OutputRoot = Join-Path (Get-DefaultDataDir) 'SystemConfig' }
+$extraDirs = Get-ExtraProgramDirs $envMap
 
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $computer = $env:COMPUTERNAME
@@ -302,8 +303,9 @@ if (Copy-TreeFiltered -Source $nsSrc -Dest $nsDst -ExcludeDirNames @('Log', 'Log
 
 # Easy Context Menu：安装目录内 ini
 $ecmCopied = $false
-$ecmCandidates = @(
-  'S:\Program Files\Easy Context Menu',
+$ecmCandidates = @()
+foreach ($ed in $extraDirs) { $ecmCandidates += (Join-Path $ed 'Easy Context Menu') }
+$ecmCandidates += @(
   'C:\Program Files\Easy Context Menu',
   'C:\Program Files (x86)\Easy Context Menu',
   'D:\Program Files\Easy Context Menu'
@@ -333,8 +335,9 @@ if (-not $ecmCopied) {
 $ppIniOk = $false
 $ppDst = Join-Path $dirs.apps 'potplayer'
 Ensure-Dir $ppDst
-$ppInstallCandidates = @(
-  'S:\Program Files\DAUM\PotPlayer',
+$ppInstallCandidates = @()
+foreach ($ed in $extraDirs) { $ppInstallCandidates += (Join-Path $ed 'DAUM\PotPlayer') }
+$ppInstallCandidates += @(
   'C:\Program Files\DAUM\PotPlayer',
   'C:\Program Files (x86)\DAUM\PotPlayer'
 )
@@ -371,9 +374,9 @@ $tcFileCandidates = @()
 foreach ($p in @($tcMeta.iniFileName, $tcMeta.ftpIniName)) {
   if ($p) { $tcFileCandidates += $p }
 }
-$tcDirCandidates = @(
-  $tcMeta.installDir,
-  'S:\Program Files\totalcmd',
+$tcDirCandidates = @($tcMeta.installDir)
+foreach ($ed in $extraDirs) { $tcDirCandidates += (Join-Path $ed 'totalcmd') }
+$tcDirCandidates += @(
   'C:\Program Files\totalcmd',
   'C:\Program Files (x86)\totalcmd',
   'C:\totalcmd'

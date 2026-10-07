@@ -1,6 +1,6 @@
 ---
 name: awam-windows-backup
-version: 0.0.1
+version: 0.0.2
 description: >-
   Windows 本机 Kopia 增量备份与恢复（用户目录 + 系统配置导出）。
   Use when the user asks to backup, restore, snapshot, 备份, 恢复, Kopia,
@@ -18,6 +18,15 @@ description: >-
 | `config/` | **本地配置（不进 Git）**：路径、密码、备份源 |
 | `config.example/` | 可提交的模板 |
 | `scripts/` | 可程序化执行的脚本 |
+
+## 快速上手（新机器）
+
+1. **安装 Kopia**：从 [kopia releases](https://github.com/kopia/kopia/releases) 下载 `kopia-<版本>-windows-x64.zip` 解压到任意目录（国内网络不畅可走镜像加速）；无需安装服务，脚本直接调用 `kopia.exe`。
+2. **生成配置**：`powershell -File scripts/init-config.ps1`（从 `config.example/` 复制模板，已存在不覆盖）。
+3. **编辑 `config/repository.env`**：必填 `KOPIA_EXE` / `KOPIA_REPO_PATH` / `KOPIA_PASSWORD` / `KOPIA_CONFIG_PATH`；其余项留空用内置默认（见下方配置项表）。
+4. **编辑 `config/sources.json`**：把 `path` 改成要备份的目录（如用户目录）。
+5. **连接仓库**：`powershell -File scripts/setup.ps1`（首次会 create 仓库并导入策略）。
+6. **首次备份**：`powershell -File scripts/backup.ps1`（建议管理员 PowerShell，VSS/注册表/Wi-Fi 需要）。
 
 ## Agent 强制流程（引导用户）
 
@@ -46,6 +55,7 @@ Test-Path "$skill\config\sources.json"
   - `KOPIA_REPO_PATH`：仓库目标路径
   - `KOPIA_PASSWORD`：仓库密码
   - `sources.json`：备份源路径
+  - `EXTRA_PROGRAM_DIRS`（可选）：软件装在非 C/D 盘时登记，用于应用 ini 探测
 - **已存在** → 用 `scripts/status.ps1` 或读配置，向用户复述将使用的源/目标，**征求确认**后再动。
 
 ### 2. 仓库连接
@@ -95,8 +105,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<skill>\scripts\status.ps1"
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File "<skill>\scripts\restore.ps1" `
   -Snapshot latest `
-  -SourcePath "C:\Users\Administrator" `
-  -Target "I:\Backup\RestoreTemp\Administrator"
+  -SourcePath "<要恢复的源路径，如 C:\Users\你>" `
+  -Target "<RESTORE_TEMP 配置值>\<用户名>"
 ```
 
 子路径示例：`-SubPath Downloads`
@@ -134,7 +144,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<skill>\scripts\import-syst
 
 | 文件 | 内容 |
 |------|------|
-| `repository.env` | `KOPIA_EXE`、`KOPIA_REPO_PATH`、`KOPIA_PASSWORD`、`KOPIA_CONFIG_PATH`、`SYSTEM_CONFIG_PATH`、`RESTORE_TEMP`、用户名/主机名 |
+| `repository.env` | `KOPIA_EXE`、`KOPIA_REPO_PATH`、`KOPIA_PASSWORD`、`KOPIA_CONFIG_PATH`（必填）；`SYSTEM_CONFIG_PATH`、`RESTORE_TEMP`、`EXTRA_PROGRAM_DIRS`、`KOPIA_USERNAME`、`KOPIA_HOSTNAME`（可留空：前两项默认 `<技能根>\_data\...`，用户名/主机名用当前系统） |
 | `sources.json` | 备份源：`id` / `path` / `enabled` |
 | `policies.json` | 忽略规则、保留策略、压缩、VSS |
 
@@ -153,7 +163,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<skill>\scripts\import-syst
 | 模块 id | 来源 | 说明 |
 |---------|------|------|
 | netsang | `Documents\NetSarang Computer` | Xshell/Xftp 会话与密钥（活配置） |
-| easy-context-menu | 安装目录 `Files\*.ini` | 自动探测常见路径（含 `S:\Program Files\...`） |
+| easy-context-menu | 安装目录 `Files\*.ini` | 自动探测常见安装路径；装在其他盘时配置 `EXTRA_PROGRAM_DIRS` |
 | potplayer-mini64 / potplayer64 / potplayer-ini | HKCU + 安装目录 `.ini` | 注册表 + ini，替代手工 `.reg` 导出 |
 | total-commander / total-commander-reg | 注册表 IniFileName + 安装目录 | 拷贝 `wincmd.ini` / `wcx_ftp.ini`（若存在） |
 | directory-opus | `%AppData%\GPSoftware\Directory Opus` | 替代 `.ocb` |
