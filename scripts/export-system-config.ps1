@@ -1,6 +1,12 @@
 ﻿# 导出系统级配置到 SYSTEM_CONFIG_PATH/latest，供增量快照与按模块恢复
+# 写出到 staging 后原子切换为 latest，避免先整树删除把机械盘打满
 
-param([string]$OutputRoot = '')
+param(
+  [string]$OutputRoot = '',
+  # -1 = 读配置 SYSTEM_CONFIG_SKIP_IF_FRESH_HOURS（未配置则 0，每次刷新）
+  [double]$SkipIfFreshHours = -1,
+  [switch]$KeepPrevious
+)
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'common.ps1')
@@ -65,15 +71,44 @@ try { $envMap = Get-BackupEnv } catch {
 }
 if (-not $OutputRoot) { $OutputRoot = $envMap['SYSTEM_CONFIG_PATH'] }
 if (-not $OutputRoot) { $OutputRoot = Join-Path (Get-DefaultDataDir) 'SystemConfig' }
+if ($SkipIfFreshHours -lt 0) {
+  $SkipIfFreshHours = 0
+  if ($envMap['SYSTEM_CONFIG_SKIP_IF_FRESH_HOURS']) {
+    $parsedFresh = 0.0
+    if ([double]::TryParse([string]$envMap['SYSTEM_CONFIG_SKIP_IF_FRESH_HOURS'], [ref]$parsedFresh) -and $parsedFresh -ge 0) {
+      $SkipIfFreshHours = $parsedFresh
+    }
+  }
+}
 $extraDirs = Get-ExtraProgramDirs $envMap
+
+Ensure-Dir $OutputRoot
+Clear-StaleExportDirs -OutputRoot $OutputRoot
+
+if (Test-SystemConfigFresh -OutputRoot $OutputRoot -Hours $SkipIfFreshHours) {
+  $manifestPath = Join-Path $OutputRoot 'latest\manifest.json'
+  $ageHrs = ((Get-Date) - (Get-Item -LiteralPath $manifestPath).LastWriteTime).TotalHours
+  Write-Host ("==== 跳过系统配置导出：latest 仍新 ({0:N2}h < {1}h) ====" -f $ageHrs, $SkipIfFreshHours)
+  Write-Host "  路径: $(Join-Path $OutputRoot 'latest')"
+  return
+}
+if ($SkipIfFreshHours -gt 0) {
+  $manifestPath = Join-Path $OutputRoot 'latest\manifest.json'
+  if (Test-Path -LiteralPath $manifestPath) {
+    $ageHrs = ((Get-Date) - (Get-Item -LiteralPath $manifestPath).LastWriteTime).TotalHours
+    Write-Host ("  SkipIfFresh={0}h 未命中（latest 已 {1:N2}h），开始导出" -f $SkipIfFreshHours, $ageHrs)
+  } else {
+    Write-Host "  SkipIfFresh=${SkipIfFreshHours}h 未命中（无 latest/manifest），开始导出"
+  }
+}
 
 $stamp = Get-Date -Format 'yyyyMMdd_HHmmss'
 $computer = $env:COMPUTERNAME
 $user = $env:USERNAME
 $isAdmin = Test-IsAdmin
 
-$Root = Join-Path $OutputRoot 'latest'
-if (Test-Path $Root) { Remove-Item -LiteralPath $Root -Recurse -Force }
+$FinalRoot = Join-Path $OutputRoot 'latest'
+$Root = Join-Path $OutputRoot ('.staging_' + $stamp)
 Ensure-Dir $Root
 
 $dirs = @{
@@ -96,13 +131,15 @@ $manifest = [ordered]@{
   computer    = $computer
   user        = $user
   isAdmin     = $isAdmin
-  outputRoot  = $Root
+  outputRoot  = $FinalRoot
   modules     = @()
   warnings    = @()
   restoreHint = '使用 import-system-config.ps1 -Modules <名称列表> 按模块导入'
 }
 
-Write-Host "==== export system config -> $Root (admin=$isAdmin) ===="
+Write-Host "==== export system config -> staging then latest (admin=$isAdmin) ===="
+Write-Host "  staging: $Root"
+Write-Host "  final:   $FinalRoot"
 
 $regModules = @(
   @{ id = 'environment-user'; key = 'HKCU\Environment'; note = '用户环境变量'; needAdmin = $false },
@@ -418,7 +455,7 @@ if (Test-Path -LiteralPath $asRoaming) {
     Where-Object { $_.Name -like 'AndroidStudio*' } |
     ForEach-Object {
       $dest = Join-Path $asDstRoot $_.Name
-      if (Copy-TreeFiltered -Source $_.FullName -Dest $dest -ExcludeDirNames @('caches', 'index', 'log', 'tmp', 'LocalHistory')) {
+      if (Copy-TreeFiltered -Source $_.FullName -Dest $dest -ExcludeDirNames @('caches', 'index', 'log', 'tmp', 'LocalHistory', 'plugins', 'event-log-metadata')) {
         $asCopied++
       }
     }
@@ -457,8 +494,18 @@ if ($manifest.warnings.Count) {
   foreach ($w in $manifest.warnings) { $idx += "- $w" }
 }
 $idx -join "`n" | Set-Content (Join-Path $Root 'INDEX.md') -Encoding UTF8
-[pscustomobject]@{ stamp = $stamp; latest = $Root; exportedAt = $manifest.exportedAt } |
+
+Write-Host ''
+Write-Host '==== 切换 staging -> latest ===='
+try {
+  $switched = Switch-ExportLatest -OutputRoot $OutputRoot -StagingRoot $Root -KeepPrevious:$KeepPrevious
+} catch {
+  Write-Warning "切换失败，staging 保留于: $Root"
+  throw
+}
+
+[pscustomobject]@{ stamp = $stamp; latest = $switched; exportedAt = $manifest.exportedAt } |
   ConvertTo-Json | Set-Content (Join-Path $OutputRoot 'LAST_EXPORT.json') -Encoding UTF8
 
 Write-Host ''
-Write-Host "Done. modules=$($manifest.modules.Count) warnings=$($manifest.warnings.Count)"
+Write-Host "Done. modules=$($manifest.modules.Count) warnings=$($manifest.warnings.Count) latest=$switched"

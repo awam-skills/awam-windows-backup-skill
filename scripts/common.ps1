@@ -90,3 +90,100 @@ function Test-IsAdmin {
 function Ensure-Dir([string]$Path) {
   New-Item -ItemType Directory -Force -Path $Path | Out-Null
 }
+
+function Remove-TreeFast {
+  # 比 Remove-Item -Recurse 更快：先改名释放路径，再用 rmdir /s /q 删除
+  param(
+    [Parameter(Mandatory)][string]$Path,
+    [string]$Label = ''
+  )
+  if (-not $Path -or -not (Test-Path -LiteralPath $Path)) { return }
+
+  $parent = Split-Path -Parent $Path
+  if (-not $parent) { throw "拒绝删除无父路径: $Path" }
+  $trashName = '.trash_' + [guid]::NewGuid().ToString('N')
+  $trash = Join-Path $parent $trashName
+  $tag = if ($Label) { $Label } else { Split-Path -Leaf $Path }
+
+  Write-Host "  清理 $tag ..."
+  $sw = [System.Diagnostics.Stopwatch]::StartNew()
+  try {
+    Move-Item -LiteralPath $Path -Destination $trash -Force
+  } catch {
+    Write-Warning "  无法改名 $Path，直接删除: $($_.Exception.Message)"
+    $trash = $Path
+  }
+
+  $null = cmd.exe /c "rmdir /s /q `"$trash`"" 2>&1
+  if (Test-Path -LiteralPath $trash) {
+    try {
+      [System.IO.Directory]::Delete($trash, $true)
+    } catch {
+      Write-Warning "  清理未完成，残留: $trash — $($_.Exception.Message)"
+      return
+    }
+  }
+  Write-Host ("  清理完成 {0} ({1:N1}s)" -f $tag, $sw.Elapsed.TotalSeconds)
+}
+
+function Switch-ExportLatest {
+  # 将 staging 目录原子切换为 latest；旧 latest 先改名为 previous 再快速删除
+  param(
+    [Parameter(Mandatory)][string]$OutputRoot,
+    [Parameter(Mandatory)][string]$StagingRoot,
+    [switch]$KeepPrevious
+  )
+  $latest = Join-Path $OutputRoot 'latest'
+  $previous = Join-Path $OutputRoot 'previous'
+
+  if (-not (Test-Path -LiteralPath $StagingRoot)) {
+    throw "staging 不存在，无法切换: $StagingRoot"
+  }
+
+  if ((Test-Path -LiteralPath $previous) -and -not $KeepPrevious) {
+    Remove-TreeFast -Path $previous -Label 'previous(旧)'
+  } elseif ((Test-Path -LiteralPath $previous) -and $KeepPrevious) {
+    $archived = Join-Path $OutputRoot ('previous_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
+    Move-Item -LiteralPath $previous -Destination $archived -Force
+    Write-Host "  保留上一版 -> $archived"
+  }
+
+  if (Test-Path -LiteralPath $latest) {
+    Move-Item -LiteralPath $latest -Destination $previous -Force
+    Write-Host '  latest -> previous'
+  }
+
+  Move-Item -LiteralPath $StagingRoot -Destination $latest -Force
+  Write-Host "  staging -> latest ($latest)"
+
+  if (-not $KeepPrevious -and (Test-Path -LiteralPath $previous)) {
+    Remove-TreeFast -Path $previous -Label 'previous'
+  }
+
+  return $latest
+}
+
+function Clear-StaleExportDirs {
+  # 清理中断残留的 .staging_* / .trash_*
+  param([Parameter(Mandatory)][string]$OutputRoot)
+  if (-not (Test-Path -LiteralPath $OutputRoot)) { return }
+  Get-ChildItem -LiteralPath $OutputRoot -Force -Directory -EA SilentlyContinue |
+    Where-Object { $_.Name -like '.staging_*' -or $_.Name -like '.trash_*' } |
+    ForEach-Object {
+      Write-Host "  发现残留 $($_.Name)，清理中"
+      Remove-TreeFast -Path $_.FullName -Label $_.Name
+    }
+}
+
+function Test-SystemConfigFresh {
+  # latest/manifest.json 在指定小时内则视为新鲜
+  param(
+    [Parameter(Mandatory)][string]$OutputRoot,
+    [double]$Hours
+  )
+  if ($Hours -le 0) { return $false }
+  $manifestPath = Join-Path $OutputRoot 'latest\manifest.json'
+  if (-not (Test-Path -LiteralPath $manifestPath)) { return $false }
+  $age = (Get-Date) - (Get-Item -LiteralPath $manifestPath).LastWriteTime
+  return ($age.TotalHours -lt $Hours)
+}

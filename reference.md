@@ -31,7 +31,7 @@ Kopia 对源路径每次 `snapshot create` 生成可独立恢复的快照点；�
 
 ## 应用配置与浏览器扩展
 
-- **备份方式**：`export-system-config.ps1` 在每次 `backup.ps1` 前刷新，将活配置拷到 `SYSTEM_CONFIG_PATH\latest\apps\`，并导出 PotPlayer / Total Commander 相关注册表模块。
+- **备份方式**：`export-system-config.ps1` 在每次 `backup.ps1` 前刷新：先写入 `.staging_<时间戳>/`，完成后再原子切换为 `latest/`（旧目录改名后用 `rmdir /s /q` 清理，避免先整树 `Remove-Item` 打满机械盘）。可将活配置拷到 `SYSTEM_CONFIG_PATH\latest\apps\`，并导出 PotPlayer / Total Commander 相关注册表模块。可用 `SYSTEM_CONFIG_SKIP_IF_FRESH_HOURS` 或 `-SkipIfFreshHours` 跳过短期内重复导出。
 - **Vimium / 浏览器扩展**：配置在 Chrome/Edge 的 `Local Extension Settings` 与 `Sync Extension Settings`。本机 Vimium id=`dbepggeogbaibhgnhhndojpepiihcmeb`。这些路径落在 `user-profile` 下，且 **policies 未排除**；已额外忽略 `component_crx_cache` / `File System` 等浏览器冗余，避免拖垮增量。
 - **不在范围内**：Studio 3T 连接 URI / 连接库。
 

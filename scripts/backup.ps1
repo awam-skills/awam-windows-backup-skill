@@ -3,7 +3,10 @@
 
 param(
   [switch]$SkipSystemConfigExport,
-  [string[]]$OnlyIds
+  [string[]]$OnlyIds,
+  # -1 = 交给 export-system-config 读配置；>=0 显式覆盖
+  [double]$SkipIfFreshHours = -1,
+  [switch]$KeepPreviousExport
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,8 +21,12 @@ $exportScript = Join-Path $PSScriptRoot 'export-system-config.ps1'
 if (-not $SkipSystemConfigExport -and (Test-Path $exportScript)) {
   Write-Host '==== 刷新系统配置导出 ===='
   try {
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $exportScript
-    if ($LASTEXITCODE -ne 0) {
+    $exportArgs = @{}
+    if ($SkipIfFreshHours -ge 0) { $exportArgs['SkipIfFreshHours'] = $SkipIfFreshHours }
+    if ($KeepPreviousExport) { $exportArgs['KeepPrevious'] = $true }
+    # 同进程调用，避免再起 powershell.exe，便于传参与看进度
+    & $exportScript @exportArgs
+    if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
       Write-Warning "export-system-config 退出码 $LASTEXITCODE ，仍继续快照"
     }
   } catch {

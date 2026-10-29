@@ -1,6 +1,6 @@
 ---
 name: awam-windows-backup
-version: 0.0.2
+version: 0.0.3
 description: >-
   Windows 本机 Kopia 增量备份与恢复（用户目录 + 系统配置导出）。
   Use when the user asks to backup, restore, snapshot, 备份, 恢复, Kopia,
@@ -79,13 +79,16 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<skill>\scripts\backup.ps1"
 可选：
 
 - `-SkipSystemConfigExport`：跳过系统配置刷新
+- `-SkipIfFreshHours 12`：latest 在 N 小时内则跳过重新导出（机械盘建议开启）
+- `-KeepPreviousExport`：切换后保留上一份 `previous/`
 - `-OnlyIds user-profile,system-config`：只备指定源
 
 备份前向用户说明：
 
-- 会先导出 hosts / 环境变量 / 计划任务等 → `SYSTEM_CONFIG_PATH\latest`
+- 会先导出 hosts / 环境变量 / 计划任务等 → staging → 原子切换为 `SYSTEM_CONFIG_PATH\latest`（不再先整树删除）
 - 再对 `sources.json` 中 enabled 源做 **snapshot create**（增量）
 - 建议管理员运行（VSS、HKLM、防火墙、Wi-Fi 密钥）
+- `SYSTEM_CONFIG_PATH` 若在机械盘上，可设 `SYSTEM_CONFIG_SKIP_IF_FRESH_HOURS=12` 避免短时间重复打满磁盘
 
 结束后展示 `Done: ok=N fail=M` 与 snapshot list。
 
@@ -144,7 +147,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "<skill>\scripts\import-syst
 
 | 文件 | 内容 |
 |------|------|
-| `repository.env` | `KOPIA_EXE`、`KOPIA_REPO_PATH`、`KOPIA_PASSWORD`、`KOPIA_CONFIG_PATH`（必填）；`SYSTEM_CONFIG_PATH`、`RESTORE_TEMP`、`EXTRA_PROGRAM_DIRS`、`KOPIA_USERNAME`、`KOPIA_HOSTNAME`（可留空：前两项默认 `<技能根>\_data\...`，用户名/主机名用当前系统） |
+| `repository.env` | `KOPIA_EXE`、`KOPIA_REPO_PATH`、`KOPIA_PASSWORD`、`KOPIA_CONFIG_PATH`（必填）；`SYSTEM_CONFIG_PATH`、`SYSTEM_CONFIG_SKIP_IF_FRESH_HOURS`、`RESTORE_TEMP`、`EXTRA_PROGRAM_DIRS`、`KOPIA_USERNAME`、`KOPIA_HOSTNAME`（可留空：路径类默认 `<技能根>\_data\...`，用户名/主机名用当前系统） |
 | `sources.json` | 备份源：`id` / `path` / `enabled` |
 | `policies.json` | 忽略规则、保留策略、压缩、VSS |
 
