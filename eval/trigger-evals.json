@@ -1,0 +1,36 @@
+{
+  "_readme": "awam-skill-eval 生成：意图路由评测集。正例=描述触发场景；负例=confusable sibling 的「看起来像但不该触发」边界例。只读评测资产。",
+  "_skill": "windows/awam-windows-backup",
+  "_n_pos": 4,
+  "_n_neg": 3,
+  "queries": [
+    {
+      "text": "备份系统配置",
+      "expect_trigger": true
+    },
+    {
+      "text": "用 Kopia 做一个快照",
+      "expect_trigger": true
+    },
+    {
+      "text": "备份 hosts 和环境变量",
+      "expect_trigger": true
+    },
+    {
+      "text": "恢复之前的计划任务配置",
+      "expect_trigger": true
+    },
+    {
+      "text": "清理 C 盘临时文件",
+      "expect_trigger": false
+    },
+    {
+      "text": "分析 D 盘空间占用生成报表",
+      "expect_trigger": false
+    },
+    {
+      "text": "检查本机端口连通性",
+      "expect_trigger": false
+    }
+  ]
+}
